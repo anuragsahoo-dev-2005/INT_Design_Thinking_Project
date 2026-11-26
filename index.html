@@ -7,7 +7,7 @@
 <style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{background:#f4f6fa;font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;color:#1e293b}header{position:sticky;top:env(safe-area-inset-top,0px);z-index:20}body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:#0f2547;z-index:30}input,select,textarea{border:1px solid #cbd5e1;border-radius:.75rem;padding:.6rem .8rem;width:100%;background:#fff;font-size:.875rem}input:focus,select:focus,textarea:focus{outline:2px solid #0d9488;border-color:transparent}</style></head>
 <body><div id="root"></div>
 <script>
-const {useState}=React,html=htm.bind(React.createElement);
+const {useState,useEffect,useRef}=React,html=htm.bind(React.createElement);
 const K='cc_v1',DN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],ST=['Available','Busy','Unavailable'];
 const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 const addD=n=>{const d=new Date();d.setDate(d.getDate()+n);return iso(d)};
@@ -109,7 +109,7 @@ const T=['Faculty','Date & time','Details','Review'];
 return html`<div class="mx-auto max-w-2xl"><h1 class="mb-4 text-2xl font-bold text-navy">Book an Appointment</h1><div class="mb-5 flex gap-2">${T.map((t,i)=>html`<div key=${t} class=${cx('flex-1 rounded-lg py-2 text-center text-xs font-semibold',step===i+1?'bg-navy text-white':step>i+1?'bg-teal/20 text-teal':'bg-slate-200 text-slate-500')}>${i+1}. ${t}</div>`)}</div>
 <${Cd} c="space-y-4">
 ${step===1&&html`<div class="grid gap-2 sm:grid-cols-2">${S.faculty.map(x=>html`<button key=${x.id} onClick=${()=>{setF(x.id);setT('')}} class=${cx('flex items-center gap-3 rounded-xl border p-3 text-left',fid===x.id?'border-teal bg-teal/5':'border-slate-200')}><${Av} n=${x.name}/><div class="min-w-0 flex-1"><p class="truncate text-sm font-semibold">${x.name}</p><p class="truncate text-xs text-slate-500">${x.dept}</p></div></button>`)}</div>`}
-${step===2&&html`<div><label class="mb-1 block text-sm font-medium">Date (${f.name})</label><input type="date" min=${addD(0)} value=${date} onChange=${e=>{setDate(e.target.value<addD(0)?'':e.target.value);setT('')}}/><div class="mt-4"><p class="mb-2 text-sm font-medium">Available slots</p>${!date?html`<${Em} t="Pick a date to see slots."/>`:slots.length?html`<div class="flex flex-wrap gap-2">${slots.map(t=>html`<button key=${t} onClick=${()=>setT(t)} class=${cx('rounded-lg border px-4 py-2 text-sm',time===t?'border-teal bg-teal text-white':'border-slate-300')}>${t}</button>`)}</div>`:html`<${Em} t="No free slots on this date. Try another day."/>`}</div></div>`}
+${step===2&&html`<div><label class="mb-1 block text-sm font-medium">Date (${f.name})</label><input type="date" min=${addD(0)} defaultValue=${date} onChange=${e=>{setDate(e.target.value<addD(0)?'':e.target.value);setT('')}}/><div class="mt-4"><p class="mb-2 text-sm font-medium">Available slots</p>${!date?html`<${Em} t="Pick a date to see slots."/>`:slots.length?html`<div class="flex flex-wrap gap-2">${slots.map(t=>html`<button key=${t} onClick=${()=>setT(t)} class=${cx('rounded-lg border px-4 py-2 text-sm',time===t?'border-teal bg-teal text-white':'border-slate-300')}>${t}</button>`)}</div>`:html`<${Em} t="No free slots on this date. Try another day."/>`}</div></div>`}
 ${step===3&&html`<div class="space-y-3"><div class="flex gap-2">${['In-person','Online'].map(m=>html`<button key=${m} onClick=${()=>setM(m)} class=${cx('flex-1 rounded-xl border py-2 text-sm font-semibold',mode===m?'border-teal bg-teal/10 text-teal':'border-slate-300')}>${m}</button>`)}</div><input placeholder="Subject (e.g. Data Structures)" value=${sub} onInput=${e=>setSub(e.target.value)}/><textarea rows="4" placeholder="Describe your academic doubt" value=${doubt} onInput=${e=>setDb(e.target.value)}></textarea></div>`}
 ${step===4&&html`<dl class="space-y-2 text-sm">${[['Faculty',f.name],['When',dl(date)+' at '+time],['Mode',mode],['Subject',sub],['Doubt',doubt]].map(([a,b])=>html`<div key=${a} class="flex gap-3"><dt class="w-20 shrink-0 text-slate-500">${a}</dt><dd class="font-medium">${b}</dd></div>`)}</dl>`}
 <div class="flex justify-between pt-2"><${Bt} k="g" disabled=${step===1} onClick=${()=>setStep(step-1)}>Back<//>${step<4?html`<${Bt} onClick=${next}>Continue<//>`:html`<${Bt} k="t" disabled=${ld} onClick=${submit}>${ld?'Submitting...':'Submit request'}<//>`}</div><//></div>`}
@@ -159,10 +159,18 @@ ${!L.length&&html`<${Cd} c="text-center"><p class="mb-3 text-slate-500">No answe
 ${L.length>0&&html`<p class="mt-6 text-center text-sm text-slate-500">Still stuck? <button class="font-semibold text-teal underline" onClick=${()=>A.book()}>Book a Consultation</button></p>`}</div>`}
 
 function App(){
-const [S,setS]=useState(load),[v,setV]=useState(()=>({p:load().user?'dash':'landing'})),[tt,setTt]=useState('');
-const save=fn=>setS(p=>{const n=structuredClone(p);fn(n);try{localStorage.setItem(K,JSON.stringify(n))}catch(e){}return n});
+const [S,setS]=useState(null),[v,setV]=useState({p:'landing'}),[tt,setTt]=useState(''),[dbError,setDbError]=useState(null);
+const writeQueue=useRef(Promise.resolve());
+useEffect(()=>{let active=true;const start=async()=>{const response=await fetch('/api/state');if(!response.ok)throw new Error('HTTP '+response.status);const result=await response.json();let state=result.state;
+if(!state){state=load();state.user=null;const init=await fetch('/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(state)});if(!init.ok)throw new Error('HTTP '+init.status)}
+if(active)setS({...state,user:null})};start().catch(e=>{if(active)setDbError('Could not load saved data. Make sure the CampusConnect server is running. '+e.message)});return()=>{active=false}},[]);
+useEffect(()=>{if(!S)return;let active=true;const snapshot=JSON.stringify({faculty:S.faculty,appts:S.appts,notifs:S.notifs});
+writeQueue.current=writeQueue.current.catch(()=>{}).then(async()=>{const response=await fetch('/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:snapshot});if(!response.ok)throw new Error('HTTP '+response.status);if(active)setDbError(null)}).catch(e=>{if(active)setDbError('Your latest changes could not be saved. Check the server connection and try again. '+e.message)});
+return()=>{active=false}},[S]);
+const save=fn=>{if(!S)return;const n=structuredClone(S);fn(n);setS(n)};
 const go=(p,x={})=>{setV({p,...x});window.scrollTo(0,0)};
 const toast=m=>{setTt(m);setTimeout(()=>setTt(''),2500)};
+if(!S)return html`<main class="mx-auto max-w-xl px-4 py-16"><${Cd}><h1 class="text-xl font-bold text-navy">${dbError?'CampusConnect could not connect':'Loading CampusConnect...'}</h1><p class="mt-2 text-sm text-slate-600">${dbError||'Loading saved appointments and faculty availability.'}</p><p class="mt-3 text-sm text-slate-500">Start the backend with <code>python server.py</code>, then refresh this page.</p><//></main>`;
 const login=(r,next,fid)=>{save(n=>{n.user={role:r,fid:r==='faculty'?'f1':null}});go(next||'dash',{fid})};
 const logout=()=>{save(n=>{n.user=null});go('landing')};
 const book=(fid,date,time)=>{const u=S.user;if(!u)return go('login',{next:'book',fid});if(u.role!=='student')return toast('Switch to the student demo to book appointments.');go('book',{fid,date,time})};
@@ -170,6 +178,6 @@ const A={S,save,go,toast,login,logout,book,v};
 let p=v.p;if(['dash','track','book'].includes(p)&&!S.user)p='login';if(['track','book'].includes(p)&&S.user.role!=='student')p='dash';
 const pg={landing:Landing,login:Login,dir:Dir,profile:Profile,book:Book,track:Track,faq:Faq,dash:S.user&&S.user.role==='faculty'?FDash:SDash}[p]||Landing;
 const body=html`<${pg} A=${A} v=${v} key=${JSON.stringify(v)+p}/>`;
-return html`<div class="min-h-screen"><${Nav} A=${A} p=${p}/>${p==='landing'?body:html`<main class="mx-auto max-w-6xl px-4 py-6">${body}</main>`}${tt&&html`<div class="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 rounded-xl bg-navy px-5 py-3 text-sm text-white shadow-lg">${tt}</div>`}</div>`}
+return html`<div class="min-h-screen"><${Nav} A=${A} p=${p}/>${dbError&&html`<div role="alert" class="mx-auto max-w-6xl px-4 pt-4"><p class="rounded-xl bg-red-50 p-3 text-sm text-red-700">${dbError}</p></div>`}${p==='landing'?body:html`<main class="mx-auto max-w-6xl px-4 py-6">${body}</main>`}${tt&&html`<div class="fixed bottom-6 left-1/2 z-40 -translate-x-1/2 rounded-xl bg-navy px-5 py-3 text-sm text-white shadow-lg">${tt}</div>`}</div>`}
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
 </script></body></html>
