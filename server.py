@@ -1,13 +1,18 @@
 import json
 import logging
 import sqlite3
+import os
 from contextlib import closing
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
-DATABASE = ROOT / "campusconnect.db"
+
+DATA_DIR = Path(os.environ.get("DATA_DIR", ROOT))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+DATABASE = DATA_DIR / "campusconnect.db"
 MAX_BODY_SIZE = 1_000_000
 
 
@@ -99,10 +104,19 @@ class CampusConnectHandler(SimpleHTTPRequestHandler):
         self.send_json(200, {"saved": True})
 
 
+
 if __name__ == "__main__":
     initialize_database()
-    server = ThreadingHTTPServer(("127.0.0.1", 8000), CampusConnectHandler)
-    print("CampusConnect running at http://127.0.0.1:8000")
+
+    port = int(os.environ.get("PORT", 8000))
+
+    server = ThreadingHTTPServer(
+        ("0.0.0.0", port),
+        CampusConnectHandler
+    )
+
+    print(f"CampusConnect running on port {port}")
+
     try:
         server.serve_forever()
     except KeyboardInterrupt:
